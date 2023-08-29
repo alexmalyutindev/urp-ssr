@@ -70,3 +70,4 @@ sysinfo.txt
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
 .idea/
+.DS_Store

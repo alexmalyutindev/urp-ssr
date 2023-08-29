@@ -1,0 +1,24 @@
+{
+  "name": "com.alexmalyutindev.urp-ssr",
+  "displayName": "URP Screen Space Reflection",
+  "description": "Screen Space Reflection for Unity Universal RP",
+  "homepage": "https://github.com/alexmalyutindev/urp-ssr",
+  "version": "1.0.0",
+  "unity": "2022.3",
+  "license": "MIT",
+  "author": "Alex Malyutin <alex.malyutin.dev@gmail.com> (https://github.com/alexmalyutindev)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alexmalyutindev/urp-ssr.git"
+  },
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "14.0.8"
+  },
+  "samples": [
+    {
+      "displayName": "Demo",
+      "description": "Unity UPM Template Demo",
+      "path": "Samples~/Demo"
+    }
+  ]
+}
