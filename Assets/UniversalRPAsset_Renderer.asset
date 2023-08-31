@@ -16,8 +16,8 @@ MonoBehaviour:
     debugReplacementPS: {fileID: 4800000, guid: cf852408f2e174538bcd9b7fda1c5ae7, type: 3}
     hdrDebugViewPS: {fileID: 4800000, guid: 573620ae32aec764abd4d728906d2587, type: 3}
   m_RendererFeatures:
-  - {fileID: 1384894357460861376}
-  m_RendererFeatureMap: c0c1e5a314223813
+  - {fileID: 6583633600095166807}
+  m_RendererFeatureMap: 57a1ffb0e0c35d5b
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
@@ -56,7 +56,7 @@ MonoBehaviour:
   m_CopyDepthMode: 0
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 1
---- !u!114 &1384894357460861376
+--- !u!114 &6583633600095166807
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -69,3 +69,5 @@ MonoBehaviour:
   m_Name: ScreenSpaceReflectionFeature
   m_EditorClassIdentifier: 
   m_Active: 1
+  TracingMaterial: {fileID: 2100000, guid: e24416b5f10a34e60b51e0dd43f43cb2, type: 2}
+  PostProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}

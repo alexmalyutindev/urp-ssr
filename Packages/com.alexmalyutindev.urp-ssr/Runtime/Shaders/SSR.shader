@@ -21,6 +21,7 @@ Shader "AlexMalyutinDev/SSR"
             Blend SrcAlpha OneMinusSrcAlpha
             ZWrite Off
             ZTest Off
+            //            Cull Front
 
             Name "SSR Tracing"
 
@@ -60,6 +61,7 @@ Shader "AlexMalyutinDev/SSR"
 
                 float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
                 output.uv = input.uv;
+
                 output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
                 output.viewDirectionWS = -GetWorldSpaceViewDir(positionWS.xyz);
                 output.viewDirectionVS = TransformWorldToViewDir(output.viewDirectionWS);
@@ -69,11 +71,6 @@ Shader "AlexMalyutinDev/SSR"
                 output.positionNDC.zw = output.positionCS.zw;
 
                 return output;
-            }
-
-            half f(float a, float b)
-            {
-                return a;
             }
 
             half3 GetNormals(float3 positionWS, float2 uv)
@@ -96,6 +93,12 @@ Shader "AlexMalyutinDev/SSR"
                 #endif
             }
 
+            TEXTURE2D(_BlueNoise_Texture);
+            SAMPLER(sampler_BlueNoise_Texture);
+            float4 _Dithering_Params;
+            #define DitheringScale          _Dithering_Params.xy
+            #define DitheringOffset         _Dithering_Params.zw
+
             half4 Fragment(Varyings input) : SV_Target
             {
                 float2 uv = input.positionNDC.xy;
@@ -114,7 +117,7 @@ Shader "AlexMalyutinDev/SSR"
                     return 0;
                 }
 
-                half depth = f(SampleSceneDepth(uv), _ZBufferParams);
+                half depth = SampleSceneDepth(uv);
                 if (depth == UNITY_RAW_FAR_CLIP_VALUE)
                     return 0;
 
@@ -124,21 +127,26 @@ Shader "AlexMalyutinDev/SSR"
                 float3 normalWS = GetNormals(positionWS, uv);
 
                 half NdotV = dot(normalWS, -normalize(input.viewDirectionWS));
-                reflectivity *= Pow4(saturate(1 - NdotV));
+                reflectivity *= (saturate(1 - NdotV));
 
                 if (reflectivity < 0.001)
                 {
                     return 0;
                 }
 
-                float3 reflectWS = reflect(normalize(input.viewDirectionWS), normalWS);
+                float3 reflectWS = normalize(reflect(input.viewDirectionWS, normalWS));
 
-                half noise = InterleavedGradientNoise(uv * _ScreenSize.xy, floor(_TimeParameters.x * 60));
+                // TODO: Replace blue noise
+                half noise = SAMPLE_TEXTURE2D(
+                    _BlueNoise_Texture,
+                    sampler_BlueNoise_Texture,
+                    uv * DitheringScale + DitheringOffset
+                ).a;
 
                 float2 reflectUV = uv;
 
                 int i = 0;
-                half travelDistance = 0.2h + noise * 0.1f;
+                half travelDistance = 0.1h + noise * 0.5f;
                 UNITY_LOOP
                 while (i < 5)
                 {
@@ -152,16 +160,21 @@ Shader "AlexMalyutinDev/SSR"
                     }
 
                     depth = SampleSceneDepth(reflectUV);
-                    travelDistance = length(ray - ComputeWorldSpacePosition(reflectUV, depth, _InvCameraViewProj)) +
-                        noise * 0.3h;
+                    travelDistance = length(positionWS - ComputeWorldSpacePosition(reflectUV, depth, _InvCameraViewProj));
                     i++;
                 }
+
+                half uvAttenuation = saturate(1 - length(reflectUV * 2 - 1));
+                // return half4(LinearEyeDepth(depth, _ZBufferParams).xxx * 0.1, 1);
+                // return half4(travelDistance.xxx, 1);
 
 
                 float3 originalSceneColor = SampleSceneColor(uv);
                 float3 sceneColor = SampleSceneColor(reflectUV);
 
-                return half4(sceneColor * originalSceneColor, reflectivity);
+                float alpha = reflectivity * uvAttenuation;
+
+                return half4(sceneColor, alpha);
 
                 float3 positionVS = input.viewDirectionVS * LinearEyeDepth(depth, _ZBufferParams);
                 return half4(positionVS, 1);

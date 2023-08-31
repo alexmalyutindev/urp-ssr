@@ -40,7 +40,7 @@ namespace SSR.Runtime
             RenderingUtils.ReAllocateIfNeeded(ref _specularBuffer, desc, name: BufferName);
 
             ConfigureTarget(_specularBuffer, _renderer.GetDepthTexture());
-            ConfigureClear(ClearFlag.Color, Color.gray);
+            ConfigureClear(ClearFlag.Color, Color.white);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
