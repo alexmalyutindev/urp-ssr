@@ -4,12 +4,12 @@ namespace SSR.Runtime
 {
     public class ScreenSpaceReflectionFeature : ScriptableRendererFeature
     {
-        ScreenSpaceReflectionPass _pass;
+        SpecularReflectivityPass _pass;
 
         /// <inheritdoc/>
         public override void Create()
         {
-            _pass = new ScreenSpaceReflectionPass
+            _pass = new SpecularReflectivityPass
             {
                 renderPassEvent = RenderPassEvent.AfterRenderingOpaques
             };

@@ -5,7 +5,7 @@ using UnityEngine.Rendering.Universal;
 
 namespace SSR.Runtime
 {
-    public class ScreenSpaceReflectionPass : ScriptableRenderPass
+    public class SpecularReflectivityPass : ScriptableRenderPass
     {
         private const string BufferName = "_SpecularReflectivityBuffer";
         private RTHandle _specularBuffer;
@@ -13,9 +13,10 @@ namespace SSR.Runtime
         private FilteringSettings _filteringSettings;
         private ShaderTagId _shaderTagId;
 
-        public ScreenSpaceReflectionPass()
+        public SpecularReflectivityPass()
         {
-            ConfigureInput(ScriptableRenderPassInput.Depth);
+            profilingSampler = new ProfilingSampler(nameof(SpecularReflectivityPass));
+            ConfigureInput(ScriptableRenderPassInput.Depth | ScriptableRenderPassInput.Normal);
 
             _filteringSettings = FilteringSettings.defaultValue;
             _filteringSettings.renderQueueRange = RenderQueueRange.opaque;
@@ -30,17 +31,16 @@ namespace SSR.Runtime
 
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
-            var desc = new RenderTextureDescriptor()
-            {
-                width = cameraTextureDescriptor.width,
-                height = cameraTextureDescriptor.height,
-                colorFormat = RenderTextureFormat.ARGB32
-            };
+            var desc = new RenderTextureDescriptor(
+                cameraTextureDescriptor.width,
+                cameraTextureDescriptor.height,
+                RenderTextureFormat.ARGB32
+            );
 
             RenderingUtils.ReAllocateIfNeeded(ref _specularBuffer, desc, name: BufferName);
 
             ConfigureTarget(_specularBuffer, _renderer.GetDepthTexture());
-            ConfigureClear(ClearFlag.Color, Color.clear);
+            ConfigureClear(ClearFlag.Color, Color.gray);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
@@ -49,6 +49,9 @@ namespace SSR.Runtime
 
             using (new ProfilingScope(cmd, profilingSampler))
             {
+                context.ExecuteCommandBuffer(cmd);
+                cmd.Clear();
+
                 var drawingSettings = CreateDrawingSettings(
                     _shaderTagId,
                     ref renderingData,
@@ -56,12 +59,11 @@ namespace SSR.Runtime
                 );
 
                 context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref _filteringSettings);
-
-                cmd.SetGlobalTexture(BufferName, _specularBuffer);
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
             }
 
+            cmd.SetGlobalTexture(BufferName, _specularBuffer);
+            context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
 
             CommandBufferPool.Release(cmd);
         }
