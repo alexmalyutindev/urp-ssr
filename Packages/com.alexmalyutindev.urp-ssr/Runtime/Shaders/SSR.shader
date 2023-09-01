@@ -19,6 +19,7 @@ Shader "AlexMalyutinDev/SSR"
         {
 
             Blend SrcAlpha OneMinusSrcAlpha
+            //            Blend DstColor Zero
             ZWrite Off
             ZTest Off
 
@@ -100,6 +101,7 @@ Shader "AlexMalyutinDev/SSR"
 
             half4 Fragment(Varyings input) : SV_Target
             {
+                const half4 clearColor = 0;
                 float2 uv = input.positionNDC.xy;
                 half4 specularReflectivity = SAMPLE_TEXTURE2D_X(
                     _SpecularReflectivityBuffer,
@@ -113,12 +115,14 @@ Shader "AlexMalyutinDev/SSR"
                 // TODO: Involve stencil buffer to early test
                 if (reflectivity < 0.01)
                 {
-                    return 0;
+                    return clearColor;
                 }
 
                 half depth = SampleSceneDepth(uv);
                 if (depth == UNITY_RAW_FAR_CLIP_VALUE)
-                    return 0;
+                {
+                    return clearColor;
+                }
 
                 half3 positionWS = ComputeWorldSpacePosition(uv, depth, _InvCameraViewProj);
 
@@ -130,13 +134,13 @@ Shader "AlexMalyutinDev/SSR"
 
                 if (reflectivity < 0.001)
                 {
-                    return 0;
+                    return clearColor;
                 }
 
                 half noise = SAMPLE_TEXTURE2D(
                     _BlueNoise_Texture,
                     sampler_BlueNoise_Texture,
-                    uv * DitheringScale + DitheringOffset
+                    uv * DitheringScale
                 ).a;
 
                 half3 noise3 = sin(half3(noise, 2 * noise + 4.235, 5 * noise + 11.35235) * 2 * PI) * 0.05;
@@ -166,9 +170,10 @@ Shader "AlexMalyutinDev/SSR"
                     }
 
                     depth = SampleSceneDepth(reflectUV);
-                    half behindDepthBuffer =
-                        LinearEyeDepth(positionCS.z / positionCS.w, _ZBufferParams) >
-                        LinearEyeDepth(depth, _ZBufferParams) + thickness;
+                    half travelZ =
+                        LinearEyeDepth(positionCS.z / positionCS.w, _ZBufferParams) -
+                        LinearEyeDepth(depth, _ZBufferParams);
+                    half behindDepthBuffer = travelZ > thickness;
                     alpha *= 1 - behindDepthBuffer;
 
                     hitVS = mul(unity_MatrixInvP, ComputeClipSpacePosition(reflectUV, depth));
@@ -181,7 +186,8 @@ Shader "AlexMalyutinDev/SSR"
 
                 alpha *= uvAttenuation * (1 / (1 + bounceRayLength * 0.2));
 
-                return half4(sceneColor, alpha);
+                return half4(sceneColor * specular, alpha);
+                return half4(lerp(1, sceneColor * specular, alpha), alpha);
             }
             ENDHLSL
         }

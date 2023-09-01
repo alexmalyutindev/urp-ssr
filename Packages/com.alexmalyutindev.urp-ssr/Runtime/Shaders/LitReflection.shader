@@ -116,6 +116,7 @@ Shader "AlexMalyutinDev/Lit Reflection"
 
             #pragma shader_feature_local_fragment _METALLICSPECGLOSSMAP
             #pragma shader_feature_local_fragment _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
+            #pragma shader_feature_local_fragment _SPECULAR_SETUP
 
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/LitForwardPass.hlsl"
@@ -138,10 +139,13 @@ Shader "AlexMalyutinDev/Lit Reflection"
             half4 SpecularReflectivityPassFragment(Varyings input) : SV_Target
             {
                 half4 albedoAlpha = SampleAlbedoAlpha(input.uv, _BaseMap, sampler_BaseMap);
-                half3 specular = albedoAlpha.rgb;
-                half reflectivity = SampleMetallicSpecGloss(input.uv, albedoAlpha.a).r;
-                
-                return half4(specular, reflectivity);
+                half3 specular = albedoAlpha.rgb * _BaseColor.rgb;
+                half4 specGloss = SampleMetallicSpecGloss(input.uv, albedoAlpha.a);
+
+                half reflectivity = 1.0h - OneMinusReflectivityMetallic(specGloss.r);
+                half smoothness = specGloss.a;
+
+                return half4(specular, reflectivity * smoothness);
             }
             
             ENDHLSL
