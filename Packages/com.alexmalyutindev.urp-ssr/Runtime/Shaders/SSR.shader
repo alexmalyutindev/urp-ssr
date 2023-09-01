@@ -21,7 +21,6 @@ Shader "AlexMalyutinDev/SSR"
             Blend SrcAlpha OneMinusSrcAlpha
             ZWrite Off
             ZTest Off
-            //            Cull Front
 
             Name "SSR Tracing"
 
@@ -134,24 +133,31 @@ Shader "AlexMalyutinDev/SSR"
                     return 0;
                 }
 
-                float3 reflectWS = normalize(reflect(input.viewDirectionWS, normalWS));
-
-                // TODO: Replace blue noise
                 half noise = SAMPLE_TEXTURE2D(
                     _BlueNoise_Texture,
                     sampler_BlueNoise_Texture,
                     uv * DitheringScale + DitheringOffset
                 ).a;
 
+                half3 noise3 = sin(half3(noise, 2 * noise + 4.235, 5 * noise + 11.35235) * 2 * PI) * 0.05;
+                half3 reflectWS = normalize(reflect(input.viewDirectionWS, normalWS) + noise3 * (1 - reflectivity));
+
+                half3 reflectVS = TransformWorldToViewDir(reflectWS);
+                half3 positionVS = TransformWorldToView(positionWS);
+
                 float2 reflectUV = uv;
+                float alpha = reflectivity;
 
                 int i = 0;
-                half travelDistance = 0.1h + noise * 0.5f;
+                half4 hitVS = 0;
+                half thickness = 0.5h;
+                half bounceRayLength = 0.001h + noise;
                 UNITY_LOOP
                 while (i < 5)
                 {
-                    float3 ray = positionWS + reflectWS * travelDistance;
-                    float4 positionCS = TransformWorldToHClip(ray);
+                    // TODO: Use ViewSpace
+                    half3 ray = positionVS + reflectVS * bounceRayLength;
+                    half4 positionCS = TransformWViewToHClip(ray);
                     reflectUV = positionCS.xy / positionCS.w * half2(0.5, -0.5) + 0.5;
 
                     if (any(reflectUV > float2(1.0f, 1.0f) || reflectUV < float2(0.0f, 0.0f)))
@@ -160,26 +166,22 @@ Shader "AlexMalyutinDev/SSR"
                     }
 
                     depth = SampleSceneDepth(reflectUV);
-                    travelDistance = length(positionWS - ComputeWorldSpacePosition(reflectUV, depth, _InvCameraViewProj));
+                    half behindDepthBuffer =
+                        LinearEyeDepth(positionCS.z / positionCS.w, _ZBufferParams) >
+                        LinearEyeDepth(depth, _ZBufferParams) + thickness;
+                    alpha *= 1 - behindDepthBuffer;
+
+                    hitVS = mul(unity_MatrixInvP, ComputeClipSpacePosition(reflectUV, depth));
+                    bounceRayLength = length(positionVS - hitVS.xyz / hitVS.w);
                     i++;
                 }
 
                 half uvAttenuation = saturate(1 - length(reflectUV * 2 - 1));
-                // return half4(LinearEyeDepth(depth, _ZBufferParams).xxx * 0.1, 1);
-                // return half4(travelDistance.xxx, 1);
-
-
-                float3 originalSceneColor = SampleSceneColor(uv);
                 float3 sceneColor = SampleSceneColor(reflectUV);
 
-                float alpha = reflectivity * uvAttenuation;
+                alpha *= uvAttenuation * (1 / (1 + bounceRayLength * 0.2));
 
                 return half4(sceneColor, alpha);
-
-                float3 positionVS = input.viewDirectionVS * LinearEyeDepth(depth, _ZBufferParams);
-                return half4(positionVS, 1);
-
-                return half4(input.uv, 0, 1);
             }
             ENDHLSL
         }

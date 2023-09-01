@@ -8,6 +8,7 @@ namespace SSR.Runtime
     public class SpecularReflectivityPass : ScriptableRenderPass
     {
         private const string BufferName = "_SpecularReflectivityBuffer";
+        private const string SpecularReflectivityPassName = "SpecularReflectivity";
         private RTHandle _specularBuffer;
         private UniversalRenderer _renderer;
         private FilteringSettings _filteringSettings;
@@ -21,7 +22,7 @@ namespace SSR.Runtime
             _filteringSettings = FilteringSettings.defaultValue;
             _filteringSettings.renderQueueRange = RenderQueueRange.opaque;
 
-            _shaderTagId = new ShaderTagId("SpecularReflectivityPass");
+            _shaderTagId = new ShaderTagId(SpecularReflectivityPassName);
         }
 
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
@@ -40,7 +41,7 @@ namespace SSR.Runtime
             RenderingUtils.ReAllocateIfNeeded(ref _specularBuffer, desc, name: BufferName);
 
             ConfigureTarget(_specularBuffer, _renderer.GetDepthTexture());
-            ConfigureClear(ClearFlag.Color, Color.white);
+            ConfigureClear(ClearFlag.Color, Color.clear);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
