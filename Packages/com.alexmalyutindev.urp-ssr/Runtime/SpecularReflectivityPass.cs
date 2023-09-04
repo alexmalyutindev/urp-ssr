@@ -38,7 +38,7 @@ namespace SSR.Runtime
                 RenderTextureFormat.ARGB32
             );
 
-            RenderingUtils.ReAllocateIfNeeded(ref _specularBuffer, desc, name: BufferName);
+            RenderingUtils.ReAllocateIfNeeded(ref _specularBuffer, desc, filterMode:FilterMode.Bilinear, name: BufferName);
 
             ConfigureTarget(_specularBuffer, _renderer.GetDepthTexture());
             ConfigureClear(ClearFlag.Color, Color.clear);

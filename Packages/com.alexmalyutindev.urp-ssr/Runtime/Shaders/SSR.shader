@@ -32,10 +32,13 @@ Shader "AlexMalyutinDev/SSR"
             #pragma vertex Vertex
             #pragma fragment Fragment
 
+            #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
+
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/AmbientOcclusion.hlsl"
 
             TEXTURE2D(_SpecularReflectivityBuffer);
             SAMPLER(sampler_SpecularReflectivityBuffer);
@@ -99,9 +102,19 @@ Shader "AlexMalyutinDev/SSR"
             #define DitheringScale          _Dithering_Params.xy
             #define DitheringOffset         _Dithering_Params.zw
 
+
+            float remap_tri(float v)
+            {
+                float orig = v * 2.0f - 1.0f;
+                v = max(-1.0f, orig / sqrt(abs(orig)));
+                return v - sign(orig) + 0.5f;
+            }
+
             half4 Fragment(Varyings input) : SV_Target
             {
-                const half4 clearColor = 0;
+                const half thickness = 1.0h;
+                const half4 clearColor = half4(0.0h, 0.0h, 0.0h, 0.0h);
+
                 float2 uv = input.positionNDC.xy;
                 half4 specularReflectivity = SAMPLE_TEXTURE2D_X(
                     _SpecularReflectivityBuffer,
@@ -129,8 +142,9 @@ Shader "AlexMalyutinDev/SSR"
                 // TODO: Randomize normals
                 float3 normalWS = GetNormals(positionWS, uv);
 
-                half NdotV = dot(normalWS, -normalize(input.viewDirectionWS));
-                reflectivity *= (saturate(1 - NdotV));
+                // NOTE: Redundant
+                // half NdotV = dot(normalWS, -normalize(input.viewDirectionWS));
+                // reflectivity *= Pow4(saturate(1 - NdotV));
 
                 if (reflectivity < 0.001)
                 {
@@ -154,8 +168,7 @@ Shader "AlexMalyutinDev/SSR"
 
                 int i = 0;
                 half4 hitVS = 0;
-                half thickness = 0.5h;
-                half bounceRayLength = 0.001h + noise;
+                half bounceRayLength = 0.1h + noise;
                 UNITY_LOOP
                 while (i < 5)
                 {
@@ -173,21 +186,25 @@ Shader "AlexMalyutinDev/SSR"
                     half travelZ =
                         LinearEyeDepth(positionCS.z / positionCS.w, _ZBufferParams) -
                         LinearEyeDepth(depth, _ZBufferParams);
-                    half behindDepthBuffer = travelZ > thickness;
-                    alpha *= 1 - behindDepthBuffer;
+                    half inFrontOfDepthBuffer = travelZ < thickness;
+                    alpha *= inFrontOfDepthBuffer;
 
                     hitVS = mul(unity_MatrixInvP, ComputeClipSpacePosition(reflectUV, depth));
                     bounceRayLength = length(positionVS - hitVS.xyz / hitVS.w);
                     i++;
                 }
 
-                half uvAttenuation = saturate(1 - length(reflectUV * 2 - 1));
+
+                half guv = length(reflectUV * 2 - 1);
+                half uvAttenuation = saturate(1 - guv * guv);
                 float3 sceneColor = SampleSceneColor(reflectUV);
 
-                alpha *= uvAttenuation * (1 / (1 + bounceRayLength * 0.2));
+                AmbientOcclusionFactor aoFactor = GetScreenSpaceAmbientOcclusion(uv);
+                sceneColor *= aoFactor.directAmbientOcclusion;
 
-                return half4(sceneColor * specular, alpha);
-                return half4(lerp(1, sceneColor * specular, alpha), alpha);
+                alpha *= uvAttenuation * (1 / (1 + bounceRayLength * 0.1));
+
+                return half4(saturate(sceneColor) * specular, alpha);
             }
             ENDHLSL
         }
