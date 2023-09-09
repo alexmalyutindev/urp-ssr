@@ -110,6 +110,11 @@ Shader "AlexMalyutinDev/SSR"
                 return v - sign(orig) + 0.5f;
             }
 
+            float SampleSceneDepthLOD0(float2 uv)
+            {
+                return SAMPLE_TEXTURE2D_X_LOD(_CameraDepthTexture, sampler_CameraDepthTexture, UnityStereoTransformScreenSpaceTex(uv), 0).r;
+            }
+
             half4 Fragment(Varyings input) : SV_Target
             {
                 const half thickness = 1.0h;
@@ -131,7 +136,7 @@ Shader "AlexMalyutinDev/SSR"
                     return clearColor;
                 }
 
-                half depth = SampleSceneDepth(uv);
+                half depth = SampleSceneDepthLOD0(uv);
                 if (depth == UNITY_RAW_FAR_CLIP_VALUE)
                 {
                     return clearColor;
@@ -143,8 +148,9 @@ Shader "AlexMalyutinDev/SSR"
                 float3 normalWS = GetNormals(positionWS, uv);
 
                 // NOTE: Redundant
-                // half NdotV = dot(normalWS, -normalize(input.viewDirectionWS));
+                half NdotV = dot(normalWS, -input.viewDirectionWS);
                 // reflectivity *= Pow4(saturate(1 - NdotV));
+                reflectivity *= saturate((1.0 - NdotV) / 0.1);
 
                 if (reflectivity < 0.001)
                 {
@@ -182,7 +188,7 @@ Shader "AlexMalyutinDev/SSR"
                         break;
                     }
 
-                    depth = SampleSceneDepth(reflectUV);
+                    depth = SampleSceneDepthLOD0(reflectUV);
                     half travelZ =
                         LinearEyeDepth(positionCS.z / positionCS.w, _ZBufferParams) -
                         LinearEyeDepth(depth, _ZBufferParams);
