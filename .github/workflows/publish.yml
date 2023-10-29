@@ -1,0 +1,17 @@
+name: Publish Package
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Publish Unity package
+        uses: cdmvision/action-upm-publish@v1
+        with:
+          name: 'com.alexmalyutindev.urp-ssr'
+          upmBranch: 'upm'
