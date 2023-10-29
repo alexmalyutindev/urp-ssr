@@ -1,8 +1,8 @@
 🚧 Screen Space Reflection render feature for Unity Universal RP. 
 ==========
 
-![Build](https://github.com/alexmalyutindev/unity-upm-template/actions/workflows/publish.yml/badge.svg)
-![Release](https://img.shields.io/github/v/release/alexmalyutindev/unity-upm-template)
+![Build](https://github.com/alexmalyutindev/urp-ssr/actions/workflows/publish.yml/badge.svg)
+![Release](https://img.shields.io/github/v/release/alexmalyutindev/urp-ssr)
 
 Overview
 --------
