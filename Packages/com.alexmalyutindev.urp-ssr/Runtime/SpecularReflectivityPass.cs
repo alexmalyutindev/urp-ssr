@@ -17,7 +17,6 @@ namespace SSR.Runtime
         public SpecularReflectivityPass()
         {
             profilingSampler = new ProfilingSampler(nameof(SpecularReflectivityPass));
-            ConfigureInput(ScriptableRenderPassInput.Depth | ScriptableRenderPassInput.Normal);
 
             _filteringSettings = FilteringSettings.defaultValue;
             _filteringSettings.renderQueueRange = RenderQueueRange.opaque;

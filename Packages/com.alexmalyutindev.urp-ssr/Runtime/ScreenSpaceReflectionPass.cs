@@ -15,6 +15,7 @@ namespace SSR.Runtime
             _tracingMaterial = tracingMaterial;
             _postProcessData = postProcessData;
             profilingSampler = new ProfilingSampler(nameof(ScreenSpaceReflectionPass));
+            ConfigureInput(ScriptableRenderPassInput.Depth | ScriptableRenderPassInput.Normal);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)

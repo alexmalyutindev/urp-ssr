@@ -3,7 +3,7 @@
   "displayName": "URP Screen Space Reflection",
   "description": "Screen Space Reflection for Unity Universal RP",
   "homepage": "https://github.com/alexmalyutindev/urp-ssr",
-  "version": "1.0.0",
+  "version": "1.0.0-preview.0",
   "unity": "2022.3",
   "license": "MIT",
   "author": "Alex Malyutin <alex.malyutin.dev@gmail.com> (https://github.com/alexmalyutindev)",

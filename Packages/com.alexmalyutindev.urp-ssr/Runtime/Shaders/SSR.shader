@@ -208,7 +208,7 @@ Shader "AlexMalyutinDev/SSR"
                 AmbientOcclusionFactor aoFactor = GetScreenSpaceAmbientOcclusion(uv);
                 sceneColor *= aoFactor.directAmbientOcclusion;
 
-                alpha *= uvAttenuation * (1 / (1 + bounceRayLength * 0.1));
+                alpha *= uvAttenuation / (1 + bounceRayLength * 0.1);
 
                 return half4(saturate(sceneColor) * specular, alpha);
             }
