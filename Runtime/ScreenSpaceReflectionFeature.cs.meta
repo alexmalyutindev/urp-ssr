@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: 7e99f6d4129ba46c59df7111bd727f5a
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - TracingMaterial: {fileID: 2100000, guid: e24416b5f10a34e60b51e0dd43f43cb2, type: 2}
+  - PostProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
