@@ -1,4 +1,4 @@
-using UnityEngine.Experimental.Rendering.RenderGraphModule;
+
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
@@ -19,9 +19,9 @@ namespace SSR.InternalBridge
         /// </summary>
         /// <param name="renderer"></param>
         /// <returns></returns>
-        public static TextureHandle[] GetGBuffer(this UniversalRenderer renderer)
+        public static UnityEngine.Rendering.RenderGraphModule.TextureHandle[] GetGBuffer(this UniversalRenderer renderer)
         {
-            return renderer.frameResources.gbuffer;
+            return renderer.frameData.Get<UniversalResourceData>().gBuffer;
         }
     }
 }

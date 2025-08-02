@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.Universal;
 
 namespace SSR.Runtime
@@ -16,6 +17,47 @@ namespace SSR.Runtime
             _postProcessData = postProcessData;
             profilingSampler = new ProfilingSampler(nameof(ScreenSpaceReflectionPass));
             ConfigureInput(ScriptableRenderPassInput.Depth | ScriptableRenderPassInput.Normal);
+        }
+        
+        private class PassData
+        {
+            public TextureHandle ColorTarget;
+            public Matrix4x4 CameraTransform;
+            public Material Material;
+        }
+
+        public override void RecordRenderGraph(RenderGraph renderGraph, ContextContainer frameData)
+        {
+            var cameraData = frameData.Get<UniversalCameraData>();
+            var resourceData = frameData.Get<UniversalResourceData>();
+            var frameDesc = cameraData.cameraTargetDescriptor;
+
+            ditheringIndex = PostProcessUtils.ConfigureDithering(
+                _postProcessData,
+                ditheringIndex,
+                frameDesc.width,
+                frameDesc.height,
+                _tracingMaterial
+            );
+            
+            using var builder = renderGraph.AddUnsafePass<PassData>("Tracing", out var passData);
+            passData.ColorTarget = resourceData.activeColorTexture;
+
+            passData.Material = _tracingMaterial;
+            var transform = cameraData.camera.transform;
+            passData.CameraTransform = Matrix4x4.TRS(
+                transform.position + transform.forward,
+                transform.rotation,
+                Vector3.one * 2
+            );
+            
+            builder.AllowPassCulling(false);
+            builder.SetRenderFunc<PassData>(static (data, context) =>
+            {
+                var cmd = CommandBufferHelpers.GetNativeCommandBuffer(context.cmd);
+                cmd.SetRenderTarget(data.ColorTarget);
+                cmd.DrawMesh(RenderingUtils.fullscreenMesh, data.CameraTransform, data.Material);
+            });
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
