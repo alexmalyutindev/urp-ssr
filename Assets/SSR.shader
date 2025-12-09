@@ -158,7 +158,7 @@ Shader "Custom/WaterSSR_URP"
                 output.normalWS = normalInputs.normalWS;
                 output.screenPos = ComputeScreenPos(output.positionCS);
                 output.uv = TRANSFORM_TEX(input.uv, _MainTex);
-                output.viewDirWS = GetWorldSpaceViewDir(output.positionWS);
+                output.viewDirWS = -GetWorldSpaceViewDir(output.positionWS);
 
                 return output;
             }
@@ -167,11 +167,11 @@ Shader "Custom/WaterSSR_URP"
             float4 ReflectionFragment(Varyings input) : SV_Target
             {
                 float3 normalWS = normalize(input.normalWS);
-                float3 viewDirWS = normalize(input.viewDirWS);
-                float3 reflectionDirWS = reflect(-viewDirWS, normalWS);
+                float3 reflectionDirWS = reflect(input.viewDirWS, normalWS);
 
-                float4 farHitCS = TransformWorldToHClip(viewDirWS + reflectionDirWS * 50);
+                float4 farHitCS = TransformWorldToHClip(input.positionWS + reflectionDirWS * 5);
                 float2 farHitUV = mad(farHitCS.xy / farHitCS.w, float2(0.5, -0.5), float2(0.5, 0.5));
+
                 float sceneDepth = LinearEyeDepth(SampleSceneDepth(farHitUV), _ZBufferParams);
 
                 RayMarchResult rayResult = RayMarchSSR(input.positionWS, reflectionDirWS);
