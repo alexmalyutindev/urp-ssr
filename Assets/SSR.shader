@@ -3,6 +3,7 @@ Shader "Custom/WaterSSR_URP"
     Properties
     {
         _MainTex ("Main Texture", 2D) = "white" {}
+        _NormalMap ("Normal Map", 2D) = "bump" {}
         _SSRTraceLength ("SSR Trace Length", Float) = 50.0
     }
 
@@ -34,12 +35,14 @@ Shader "Custom/WaterSSR_URP"
 
             // URP includes
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareOpaqueTexture.hlsl"
 
             // Properties
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
+            TEXTURE2D(_NormalMap);
 
             TEXTURE2D(_HalfResTransRTForWaterTextures);
             SAMPLER(sampler_HalfResTransRTForWaterTextures);
@@ -118,12 +121,15 @@ Shader "Custom/WaterSSR_URP"
                     float3 currentRayPosWS = rayStartWS + rayDeltaWS * stepSizes[i];
                     float4 currentRayPosCS = TransformWorldToHClip(currentRayPosWS);
                     if (any(abs(currentRayPosCS.xy) > currentRayPosCS.w))
+                    {
                         break;
+                    }
 
                     float2 sampleUV = mad(currentRayPosCS.xy / currentRayPosCS.w, float2(0.5, -0.5), float2(0.5, 0.5));
                     float expectedDepthRaw = currentRayPosCS.z / currentRayPosCS.w;
                     float sceneDepthRaw = SampleSceneDepth(sampleUV);
                     float depthDiff = abs(expectedDepthRaw - sceneDepthRaw) * _ProjectionParams.z;
+
 
                     #ifdef UNITY_REVERSED_Z
                     bool depthCheck = expectedDepthRaw < sceneDepthRaw;
@@ -158,7 +164,7 @@ Shader "Custom/WaterSSR_URP"
                 output.normalWS = normalInputs.normalWS;
                 output.screenPos = ComputeScreenPos(output.positionCS);
                 output.uv = TRANSFORM_TEX(input.uv, _MainTex);
-                output.viewDirWS = -GetWorldSpaceViewDir(output.positionWS);
+                output.viewDirWS = GetWorldSpaceViewDir(output.positionWS);
 
                 return output;
             }
@@ -166,25 +172,51 @@ Shader "Custom/WaterSSR_URP"
             // Fragment shader
             float4 ReflectionFragment(Varyings input) : SV_Target
             {
-                float3 normalWS = normalize(input.normalWS);
-                float3 reflectionDirWS = reflect(input.viewDirWS, normalWS);
+                // Refraction
+                float2 normalizedScreenUV = GetNormalizedScreenSpaceUV(input.positionCS.xy);
+                float2 surfaceUV = input.positionWS.xz * 0.25 + _Time.x;
+                half3 normalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_NormalMap, sampler_LinearRepeat, surfaceUV), 0.1);
+                half3 refractionColor = SampleSceneColor(normalizedScreenUV + normalTS.xy);
+                refractionColor *= half3(0.94h, 0.96h, 1.0h);
 
-                float4 farHitCS = TransformWorldToHClip(input.positionWS + reflectionDirWS * 5);
+                float3 normalWS = normalize(input.normalWS);
+                float NdotV = dot(normalWS, normalize(input.viewDirWS));
+                float fresnel = saturate(1.0h - NdotV);
+                fresnel = fresnel * fresnel * 0.98h + 0.02h;
+
+                float3 reflectionDirWS = reflect(-input.viewDirWS, normalWS);
+
+                float4 farHitCS = TransformWorldToHClip(input.positionWS + reflectionDirWS * 10);
                 float2 farHitUV = mad(farHitCS.xy / farHitCS.w, float2(0.5, -0.5), float2(0.5, 0.5));
 
-                float sceneDepth = LinearEyeDepth(SampleSceneDepth(farHitUV), _ZBufferParams);
+                half3 reflectionColor;
+                half reflectionAlpha;
 
+                // reflectionDirWS *= InterleavedGradientNoise(input.positionCS.xy, _TimeParameters.x * 120) * 0.25 + 0.75;
                 RayMarchResult rayResult = RayMarchSSR(input.positionWS, reflectionDirWS);
                 if (rayResult.hit)
                 {
-                    float3 reflectionColor = SampleSceneColor(rayResult.hitUV);
+                    reflectionColor = SampleSceneColor(rayResult.hitUV + normalTS.xy);
                     float reflectionEdgeFade = CalculateScreenEdgeFade(rayResult.hitUV);
-                    float alpha = reflectionEdgeFade * rayResult.confidence;
-                    return half4(reflectionColor, alpha);
+                    reflectionAlpha = reflectionEdgeFade;
+                }
+                else
+                {
+                    farHitUV += normalTS.xy;
+                    reflectionColor = SampleSceneColor(farHitUV);
+                    float reflectionEdgeFade = CalculateScreenEdgeFade(farHitUV);
+                    float sceneDepth = LinearEyeDepth(SampleSceneDepth(farHitUV), _ZBufferParams);
+                    reflectionAlpha = reflectionEdgeFade * (sceneDepth > _ProjectionParams.z * 0.5h);
                 }
 
-                float reflectionEdgeFade = CalculateScreenEdgeFade(farHitUV);
-                return half4(SampleSceneColor(farHitUV), reflectionEdgeFade * (sceneDepth > _ProjectionParams.z * 0.5h));
+                // Blend EnvCube
+                half4 encodedIrradiance = half4(
+                    SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, normalize(reflectionDirWS), 0)
+                );
+                half3 envReflection = DecodeHDREnvironment(encodedIrradiance, unity_SpecCube0_HDR);
+                reflectionColor = lerp(envReflection, reflectionColor, reflectionAlpha);
+
+                return half4(lerp(refractionColor, reflectionColor, fresnel), 1.0h);
             }
             ENDHLSL
         }
