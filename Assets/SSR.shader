@@ -96,7 +96,7 @@ Shader "Custom/WaterSSR_URP"
                 float confidence;
             };
 
-            RayMarchResult RayMarchSSR(float3 rayStartWS, float3 rayDirWS, float4 currentScreenPos, int maxSteps)
+            RayMarchResult RayMarchSSR(float3 rayStartWS, float3 rayDirWS)
             {
                 RayMarchResult result;
                 result.hit = false;
@@ -104,50 +104,38 @@ Shader "Custom/WaterSSR_URP"
                 result.hitUV = float2(0, 0);
                 result.confidence = 0.0;
 
-                // Step size in world space
-                float stepSize = _SSRTraceLength / (float)maxSteps;
-
                 // Calculate ray end in world space
                 float3 rayEndWS = rayStartWS + rayDirWS * _SSRTraceLength;
-
-                // Convert to screen space
-                float4 rayStartCS = TransformWorldToHClip(rayStartWS);
-                float4 rayEndCS = TransformWorldToHClip(rayEndWS);
-
-                // Convert to screen UV space
-                float2 rayStartUV = mad(rayStartCS.xy / rayStartCS.w, float2(0.5, -0.5), float2(0.5, 0.5));
-                float2 rayEndUV = mad(rayEndCS.xy / rayEndCS.w, float2(0.5, -0.5), float2(0.5, 0.5));
-
-                float2 rayDeltaUV = rayEndUV - rayStartUV;
-                float rayStartDepth = LinearEyeDepth(rayStartCS.z / rayStartCS.w, _ZBufferParams);
-                float rayEndDepth = LinearEyeDepth(rayEndCS.z / rayEndCS.w, _ZBufferParams);
-                float rayDeltaDepth = rayEndDepth - rayStartDepth;
+                float3 rayDeltaWS = rayEndWS - rayStartWS;
 
                 // Ray marching
-                const float DEPTH_THRESHOLD = 3.18;
+                const float DEPTH_THRESHOLD = 3.1875f;
+                const float stepSizes[8] = {0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0};
 
                 [unroll(8)]
-                for (int i = 1; i <= maxSteps; i++)
+                for (int i = 1; i < 8; i++)
                 {
-                    float3 currentRayPosWS = rayStartWS + rayDirWS * (stepSize * (float)i);
+                    float3 currentRayPosWS = rayStartWS + rayDeltaWS * stepSizes[i];
                     float4 currentRayPosCS = TransformWorldToHClip(currentRayPosWS);
+                    if (any(abs(currentRayPosCS.xy) > currentRayPosCS.w))
+                        break;
+
                     float2 sampleUV = mad(currentRayPosCS.xy / currentRayPosCS.w, float2(0.5, -0.5), float2(0.5, 0.5));
+                    float expectedDepthRaw = currentRayPosCS.z / currentRayPosCS.w;
+                    float sceneDepthRaw = SampleSceneDepth(sampleUV);
+                    float depthDiff = abs(expectedDepthRaw - sceneDepthRaw) * _ProjectionParams.z;
 
-                    // Check bounds
-                    // if (any(sampleUV < 0.0) || any(sampleUV > 1.0)) break;
+                    #ifdef UNITY_REVERSED_Z
+                    bool depthCheck = expectedDepthRaw < sceneDepthRaw;
+                    #else
+                    bool depthCheck = expectedDepthRaw > sceneDepthRaw;
+                    #endif
 
-                    // Get expected depth at this point
-                    float expectedDepth = LinearEyeDepth(currentRayPosCS.z / currentRayPosCS.w, _ZBufferParams);
-
-                    // Sample scene depth
-                    float sceneDepth = GetLinearDepth(sampleUV);
-                    float depthDiff = abs(expectedDepth - sceneDepth);
-
-                    // Check for intersection
-                    if (depthDiff < DEPTH_THRESHOLD && expectedDepth > sceneDepth)
+                    // Check for intersection - ray is behind geometry
+                    if (depthDiff < DEPTH_THRESHOLD && depthCheck)
                     {
                         result.hit = true;
-                        result.stepIndex = (float)i;
+                        result.stepIndex = (float)(i + 1);
                         result.hitUV = sampleUV;
                         result.confidence = 1.0 - (depthDiff / DEPTH_THRESHOLD);
                         break;
@@ -182,7 +170,11 @@ Shader "Custom/WaterSSR_URP"
                 float3 viewDirWS = normalize(input.viewDirWS);
                 float3 reflectionDirWS = reflect(-viewDirWS, normalWS);
 
-                RayMarchResult rayResult = RayMarchSSR(input.positionWS, reflectionDirWS, input.screenPos, 8);
+                float4 farHitCS = TransformWorldToHClip(viewDirWS + reflectionDirWS * 50);
+                float2 farHitUV = mad(farHitCS.xy / farHitCS.w, float2(0.5, -0.5), float2(0.5, 0.5));
+                float sceneDepth = LinearEyeDepth(SampleSceneDepth(farHitUV), _ZBufferParams);
+
+                RayMarchResult rayResult = RayMarchSSR(input.positionWS, reflectionDirWS);
                 if (rayResult.hit)
                 {
                     float3 reflectionColor = SampleSceneColor(rayResult.hitUV);
@@ -191,12 +183,8 @@ Shader "Custom/WaterSSR_URP"
                     return half4(reflectionColor, alpha);
                 }
 
-                float4 farHitCS = TransformWorldToHClip(viewDirWS + reflectionDirWS * 50);
-                float2 farHitUV = mad(farHitCS.xy / farHitCS.w, float2(0.5, -0.5), float2(0.5, 0.5));
-                float depth01 = LinearEyeDepth(SampleSceneDepth(farHitUV), _ZBufferParams);
-
                 float reflectionEdgeFade = CalculateScreenEdgeFade(farHitUV);
-                return half4(SampleSceneColor(farHitUV), reflectionEdgeFade * (depth01 > 50));
+                return half4(SampleSceneColor(farHitUV), reflectionEdgeFade * (sceneDepth > _ProjectionParams.z * 0.5h));
             }
             ENDHLSL
         }
